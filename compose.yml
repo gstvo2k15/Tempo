@@ -3,10 +3,28 @@ services:
   tomcat:
     image: tomcat:10-jdk21
     container_name: tomcat
+  
     ports:
       - "8080:8080"
+  
     volumes:
       - tomcat-logs:/usr/local/tomcat/logs
+      - /root/otel/opentelemetry-javaagent.jar:/otel/opentelemetry-javaagent.jar:ro
+  
+    environment:
+      JAVA_TOOL_OPTIONS: "-javaagent:/otel/opentelemetry-javaagent.jar"
+  
+      OTEL_SERVICE_NAME: "tomcat-demo"
+  
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector:4318"
+      OTEL_EXPORTER_OTLP_PROTOCOL: "http/protobuf"
+  
+      OTEL_TRACES_EXPORTER: "otlp"
+      OTEL_METRICS_EXPORTER: "otlp"
+      OTEL_LOGS_EXPORTER: "none"
+  
+      OTEL_METRIC_EXPORT_INTERVAL: "5000"
+  
     networks:
       - observability
 
@@ -54,6 +72,23 @@ services:
     command: ["-config.file=/etc/loki/local-config.yaml"]
     ports:
       - "3100:3100"
+    networks:
+      - observability
+
+  alloy:
+    image: grafana/alloy:latest
+    container_name: alloy
+    command:
+      - run
+      - --server.http.listen-addr=0.0.0.0:12345
+      - /etc/alloy/config.alloy
+    volumes:
+      - ./config.alloy:/etc/alloy/config.alloy:ro
+      - tomcat-logs:/var/log/tomcat:ro
+    ports:
+      - "12345:12345"
+    depends_on:
+      - loki
     networks:
       - observability
 
